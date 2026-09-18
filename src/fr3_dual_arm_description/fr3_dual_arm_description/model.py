@@ -157,10 +157,10 @@ def add_gripper(root, side, cfg):
         element(joint, 'origin', xyz=f'{sign * 0.01545} 0 .067')
         element(joint, 'axis', xyz=f'{sign} 0 0')
         element(joint, 'limit', lower=0, upper=0.05, effort=100, velocity=0.10)
-        element(joint, 'dynamics', damping=2.0, friction=0.10)
+        element(joint, 'dynamics', damping=15.0, friction=0.40)
         surface = element(root, 'gazebo', reference=link_name)
         element(surface, 'selfCollide').text = 'false'
-        for tag, value in (('mu1', 1), ('mu2', 1), ('kp', 100000), ('kd', 10)):
+        for tag, value in (('mu1', 0.35), ('mu2', 0.35), ('kp', 30000), ('kd', 80)):
             element(surface, tag).text = str(value)
 
     tcp = element(root, 'link', name=p + 'gripper_tcp')
