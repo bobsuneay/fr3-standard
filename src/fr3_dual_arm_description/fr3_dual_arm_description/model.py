@@ -136,9 +136,11 @@ def add_gripper(root, side, cfg):
     mesh(palm, 'flange')
     mesh(palm, 'base_body', (0, 0, 0.0615))
     mesh(palm, 'rail_155', (0, 0, 0.067))
-    mesh_collision(palm, 'flange')
-    mesh_collision(palm, 'base_body', (0, 0, 0.0615))
-    mesh_collision(palm, 'rail_155', (0, 0, 0.067))
+    # Keep the stable dual-cell collision proxies for the palm: the flange and
+    # rail are mounting surfaces that overlap the wrist, so use convex boxes
+    # instead of the dense CAD STL. Only the moving fingertip keeps its mesh.
+    box(palm, (0.16, 0.0705, 0.0615), (0, 0.00325, 0.03075))
+    box(palm, (0.155, 0.007, 0.0048), (0, 0, 0.0694))
     fixed(root, p + 'tool_to_gripper', p + 'tool0', p + 'gripper_palm')
 
     for index, sign in enumerate((-1, 1)):
@@ -149,7 +151,7 @@ def add_gripper(root, side, cfg):
         inertial(link, 0.08, (0.008, 0.018, 0.07), (0, 0, 0.04))
         mesh(link, 'slider')
         mesh(link, 'finger', (0, 0, 0.008), 0 if index == 0 else math.pi)
-        mesh_collision(link, 'slider')
+        box(link, (0.024, 0.017, 0.0065), (0, 0, 0.00485))
         mesh_collision(link, 'finger', (0, 0, 0.008), 0 if index == 0 else math.pi)
         joint = element(root, 'joint', name=joint_name, type='prismatic')
         element(joint, 'parent', link=p + 'gripper_palm')
@@ -167,6 +169,9 @@ def add_gripper(root, side, cfg):
     inertial(tcp, 0.01, (0.02, 0.02, 0.01))
     fixed(root, p + 'palm_to_tcp', p + 'gripper_palm', p + 'gripper_tcp',
           g['tcp_xyz'], g['tcp_rpy'])
+    for link_name in (p + 'tool0', p + 'gripper_palm', p + 'gripper_tcp'):
+        surface = element(root, 'gazebo', reference=link_name)
+        element(surface, 'selfCollide').text = 'false'
 
 
 def control(root, name, plugin, joints, initial=None, parameters=None):
