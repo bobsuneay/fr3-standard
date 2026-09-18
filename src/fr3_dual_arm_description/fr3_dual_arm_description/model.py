@@ -52,21 +52,21 @@ def validate_hardware(cfg):
         address = ipaddress.IPv4Address(cfg[side]['robot_ip'])
         if address.is_unspecified or address.is_multicast or address.is_loopback:
             raise ValueError(f'Invalid {side} robot IP')
-        port = cfg[side]['serial_port']
-        if not port.startswith('/dev/') or 'REPLACE' in port:
-            raise ValueError(f'Configure actual {side} serial_port')
+        index = cfg[side].get('gripper_index')
+        if type(index) is not int or not 1 <= index <= 8:
+            raise ValueError(f'Configure actual {side} gripper_index (robot-attached gripper)')
     if cfg['left']['robot_ip'] == cfg['right']['robot_ip']:
         raise ValueError('Left and right IPs must differ on this host')
-    if cfg['left']['serial_port'] == cfg['right']['serial_port']:
-        raise ValueError('Each gripper needs its own serial adapter')
+    if cfg['left']['gripper_index'] == cfg['right']['gripper_index']:
+        raise ValueError('Left and right gripper indices must differ')
     g = cfg['gripper']
-    for key, low, high in (('baud_rate', 1, 4000000), ('timeout', 1, 10000),
-                           ('slave_address', 1, 247), ('position_mode_speed_register', 200, 1500),
-                           ('target_force_percent', 1, 100)):
+    for key, low, high in (('vel', 1, 100), ('force', 1, 100),
+                           ('maxtime', 1, 30000), ('block', 0, 1),
+                           ('open_pos', 0, 100), ('closed_pos', 0, 100)):
         if type(g[key]) is not int or not low <= g[key] <= high:
             raise ValueError(f'Invalid gripper.{key}')
-    if not 0 <= g['position_closed_register'] < g['position_open_register'] <= 100:
-        raise ValueError('Supplied HKV feedback is 0..100; verify register calibration')
+    if g['open_pos'] == g['closed_pos']:
+        raise ValueError('gripper.open_pos and gripper.closed_pos must differ')
     return cfg
 
 
@@ -360,6 +360,11 @@ def build_model(share, scene_path, arms, mode='gazebo', controller_file='', hard
         all_joints.extend(joints)
         for i, value in enumerate(arms[side]['initial'], 1):
             initial[f'{side}_j{i}'] = value
+        # Spawn the fingers at the open gap so the inward HKV pads do not start
+        # overlapped. Position zero is fully closed and excites the contact
+        # solver before the controller has a chance to open them.
+        initial[f'{side}_left_finger_joint'] = arms['gripper']['open_gap'] / 2
+        initial[f'{side}_right_finger_joint'] = arms['gripper']['open_gap'] / 2
 
     if mode == 'gazebo':
         # A single GazeboSystem exposes both arms and avoids duplicate
@@ -386,19 +391,26 @@ def build_model(share, scene_path, arms, mode='gazebo', controller_file='', hard
                 gripper_joints = finger_joints
             else:
                 arm_plugin = 'fairino_hardware/FairinoHardwareInterface'
-                gripper_plugin = 'ros2_hkv_gripper/GripperHardwareInterface'
+                # The HKV gripper is mounted on the FR3 and driven through the
+                # Fairino SDK (ActGripper/MoveGripper), not a separate USB serial
+                # Modbus line.  Implement this thin wrapper in third_party once
+                # the vendor fairino_hardware package is built.
+                gripper_plugin = 'fairino_hardware/FairinoGripperHardwareInterface'
                 arm_params = {'robot_ip': hardware[side]['robot_ip']}
                 gripper_params = {
+                    'robot_ip': hardware[side]['robot_ip'],
+                    'gripper_index': hardware[side]['gripper_index'],
                     **hardware['gripper'],
-                    'serial_port': hardware[side]['serial_port'],
-                    'gripper_closed_position': arms['gripper']['finger_travel'],
                 }
-                # The HKV hardware exposes only the master finger joint.
+                # Expose only the master finger joint; the follower is driven by
+                # the same rail in the real gripper.
                 gripper_joints = [f'{side}_left_finger_joint']
             control(root, side + '_arm_system', arm_plugin, arm_joints,
                     initial if mode == 'mock' else None, arm_params)
             control(root, side + '_gripper_system', gripper_plugin, gripper_joints,
-                    {} if mode == 'mock' else None, gripper_params)
+                    {f'{side}_left_finger_joint': arms['gripper']['open_gap'] / 2,
+                     f'{side}_right_finger_joint': arms['gripper']['open_gap'] / 2}
+                    if mode == 'mock' else None, gripper_params)
     return root
 
 
@@ -424,11 +436,19 @@ def semantic(root, arms):
                 link2=side + '_gripper_palm', reason='Mounting')
         element(srdf, 'disable_collisions', link1=side + '_mount_plate',
                 link2=side + '_base_link', reason='Mounting')
+        element(srdf, 'disable_collisions', link1=side + '_left_finger',
+                link2=side + '_right_finger', reason='Finger pads')
+        if root.find(f"link[@name='{side}_d435i_link']") is not None:
+            element(srdf, 'disable_collisions', link1=side + '_gripper_palm',
+                    link2=side + '_d435i_link', reason='Wrist camera mount')
     for link1, link2 in (('support_link', 'head_camera_bracket'),
                          ('head_camera_bracket', 'head_camera_link'),
                          ('support_link', 'head_camera_link')):
         element(srdf, 'disable_collisions', link1=link1, link2=link2,
                 reason='Head camera mount')
+    if root.find("link[@name='waist_camera_link']") is not None:
+        element(srdf, 'disable_collisions', link1='support_link',
+                link2='waist_camera_link', reason='Waist camera mount')
     both = element(srdf, 'group', name='both_arms')
     for side in SIDES:
         element(both, 'group', name=side + '_arm')
