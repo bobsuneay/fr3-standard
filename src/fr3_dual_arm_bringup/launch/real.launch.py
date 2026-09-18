@@ -65,6 +65,7 @@ def start(context):
         package='rviz2',
         executable='rviz2',
         parameters=[moveit_params],
+        arguments=['-d', str(description_share / 'config' / 'dual_arm.rviz')],
         condition=IfCondition(LaunchConfiguration('rviz')),
         output='screen',
     )
@@ -144,13 +145,4 @@ def generate_launch_description():
             'arms',
             default_value=str(description_share / 'config/arms.yaml')),
         OpaqueFunction(function=start),
-    ])
-
-
-def generate_launch_description():
-    return LaunchDescription([
-        DeclareLaunchArgument('hardware', default_value=''),
-        DeclareLaunchArgument('enable_execution', default_value='false'),
-        DeclareLaunchArgument('rviz', default_value='true'),
-        LogInfo(msg='TODO: validate hardware.yaml, then start two ros2_control managers, move_group and grasp app'),
     ])

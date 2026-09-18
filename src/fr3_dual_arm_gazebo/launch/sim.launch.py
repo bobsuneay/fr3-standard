@@ -95,6 +95,7 @@ def start(context):
         package='rviz2',
         executable='rviz2',
         parameters=[moveit_params],
+        arguments=['-d', str(description_share / 'config' / 'dual_arm.rviz')],
         condition=IfCondition(LaunchConfiguration('rviz')),
         output='screen',
     )
