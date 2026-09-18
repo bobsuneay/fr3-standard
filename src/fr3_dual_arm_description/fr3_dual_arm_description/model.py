@@ -91,7 +91,8 @@ def mesh(link, name, xyz=(0, 0, 0), yaw=0):
 def add_gripper(root, side, cfg):
     p = side + '_'
     g = cfg['gripper']
-    element(root, 'link', name=p + 'tool0')
+    tool = element(root, 'link', name=p + 'tool0')
+    inertial(tool, 0.01, (0.02, 0.02, 0.01))
     fixed(root, p + 'wrist_to_tool', p + 'wrist3_link', p + 'tool0',
           g['flange_xyz'], g['flange_rpy'])
     palm = element(root, 'link', name=p + 'gripper_palm')
@@ -125,7 +126,8 @@ def add_gripper(root, side, cfg):
         for tag, value in (('mu1', 1), ('mu2', 1), ('kp', 100000), ('kd', 10)):
             element(surface, tag).text = str(value)
 
-    element(root, 'link', name=p + 'gripper_tcp')
+    tcp = element(root, 'link', name=p + 'gripper_tcp')
+    inertial(tcp, 0.01, (0.02, 0.02, 0.01))
     fixed(root, p + 'palm_to_tcp', p + 'gripper_palm', p + 'gripper_tcp',
           g['tcp_xyz'], g['tcp_rpy'])
 
