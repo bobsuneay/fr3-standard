@@ -70,6 +70,17 @@ std::string _controller_ip = CONTROLLER_IP_ADDRESS;
 
 重新编译 `fairino_hardware_v3_9_7` 后，左右臂才会分别连到各自配置的 IP。
 
+仓库内已提供补丁文件 `third_party/fairino_dual_arm_ip.patch`。在
+`frcobot_ros2-v3.0.0_robotV3.9.7/` 目录下执行：
+
+```bash
+git apply --check fairino_dual_arm_ip.patch   # 先检查
+git apply fairino_dual_arm_ip.patch           # 再应用
+```
+
+或用 `patch -p1 < fairino_dual_arm_ip.patch`。应用后重新编译
+`fairino_hardware_v3_9_7` 即可。
+
 补充：`include/fairino_hardware/data_type_def.h:17` 里还有一个
 `#define CONTROLLER_IP "192.168.58.2"`，它被 `command_server.cpp` /
 `CNDE_thread.cpp` 使用（法奥的 `RemoteCmdInterface` 字符串指令服务和 UDP 线程）。
