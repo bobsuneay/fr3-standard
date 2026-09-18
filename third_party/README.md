@@ -69,3 +69,9 @@ std::string _controller_ip = CONTROLLER_IP_ADDRESS;
 ```
 
 重新编译 `fairino_hardware_v3_9_7` 后，左右臂才会分别连到各自配置的 IP。
+
+补充：`include/fairino_hardware/data_type_def.h:17` 里还有一个
+`#define CONTROLLER_IP "192.168.58.2"`，它被 `command_server.cpp` /
+`CNDE_thread.cpp` 使用（法奥的 `RemoteCmdInterface` 字符串指令服务和 UDP 线程）。
+当前只做 6 轴手臂反馈时不用改它；以后用 `RemoteCmdInterface` 发 `MoveGripper`
+控制夹爪时，如果那个节点也要连非默认 IP，同样需要让它从参数读 IP。
