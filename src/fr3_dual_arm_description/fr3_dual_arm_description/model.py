@@ -7,6 +7,7 @@ separately in the gazebo/bringup packages.
 """
 
 from copy import deepcopy
+import ipaddress
 from pathlib import Path
 import math
 import xml.etree.ElementTree as ET
@@ -39,6 +40,33 @@ def validate_arms(cfg):
         raise ValueError('Require 0 < open_gap/2 <= finger_travel <= 0.05 m')
     if cfg['left']['xyz'] == cfg['right']['xyz']:
         raise ValueError('Both bases cannot occupy the same position')
+    return cfg
+
+
+def validate_hardware(cfg):
+    if cfg.get('commissioned') is not True:
+        raise ValueError('Complete hardware.yaml commissioning before mode:=real')
+    if cfg.get('driver_package') != 'fairino_hardware_v3_9_7' or cfg.get('firmware') != '3.9.7':
+        raise ValueError('This adapter is verified against supplied 3.9.7 driver source only')
+    for side in SIDES:
+        address = ipaddress.IPv4Address(cfg[side]['robot_ip'])
+        if address.is_unspecified or address.is_multicast or address.is_loopback:
+            raise ValueError(f'Invalid {side} robot IP')
+        port = cfg[side]['serial_port']
+        if not port.startswith('/dev/') or 'REPLACE' in port:
+            raise ValueError(f'Configure actual {side} serial_port')
+    if cfg['left']['robot_ip'] == cfg['right']['robot_ip']:
+        raise ValueError('Left and right IPs must differ on this host')
+    if cfg['left']['serial_port'] == cfg['right']['serial_port']:
+        raise ValueError('Each gripper needs its own serial adapter')
+    g = cfg['gripper']
+    for key, low, high in (('baud_rate', 1, 4000000), ('timeout', 1, 10000),
+                           ('slave_address', 1, 247), ('position_mode_speed_register', 200, 1500),
+                           ('target_force_percent', 1, 100)):
+        if type(g[key]) is not int or not low <= g[key] <= high:
+            raise ValueError(f'Invalid gripper.{key}')
+    if not 0 <= g['position_closed_register'] < g['position_open_register'] <= 100:
+        raise ValueError('Supplied HKV feedback is 0..100; verify register calibration')
     return cfg
 
 
@@ -205,9 +233,13 @@ def common_model(scene_path):
     return root, scene
 
 
-def build_model(share, scene_path, arms, controller_file=''):
+def build_model(share, scene_path, arms, mode='gazebo', controller_file='', hardware=None):
+    if mode not in ('gazebo', 'mock', 'real'):
+        raise ValueError('mode must be gazebo, mock or real')
     share = Path(share)
     arms = validate_arms(arms)
+    if mode == 'real':
+        hardware = validate_hardware(hardware)
     root, scene = common_model(scene_path)
     vendor = ET.parse(share / 'urdf' / 'fr3_arm.urdf').getroot()
     initial = {}
@@ -248,15 +280,44 @@ def build_model(share, scene_path, arms, controller_file=''):
         for i, value in enumerate(arms[side]['initial'], 1):
             initial[f'{side}_j{i}'] = value
 
-    # A single GazeboSystem exposes both arms and avoids duplicate ros2_control
-    # parameters that Humble complains about when using two system blocks.
-    control(root, 'gazebo_system', 'gazebo_ros2_control/GazeboSystem',
-            all_joints, initial)
-    plugin = element(element(root, 'gazebo'), 'plugin', name='gazebo_ros2_control',
-                     filename='libgazebo_ros2_control.so')
-    element(plugin, 'robot_param').text = 'robot_description'
-    element(plugin, 'robot_param_node').text = 'robot_state_publisher'
-    element(plugin, 'parameters').text = str(controller_file)
+    if mode == 'gazebo':
+        # A single GazeboSystem exposes both arms and avoids duplicate
+        # ros2_control parameters that Humble complains about with two blocks.
+        control(root, 'gazebo_system', 'gazebo_ros2_control/GazeboSystem',
+                all_joints, initial)
+        plugin = element(element(root, 'gazebo'), 'plugin', name='gazebo_ros2_control',
+                         filename='libgazebo_ros2_control.so')
+        element(plugin, 'robot_param').text = 'robot_description'
+        element(plugin, 'robot_param_node').text = 'robot_state_publisher'
+        element(plugin, 'parameters').text = str(controller_file)
+    else:
+        # Strip Gazebo-only elements for mock/real.
+        for gazebo_node in list(root.findall('gazebo')):
+            root.remove(gazebo_node)
+        for side in SIDES:
+            arm_joints = [f'{side}_j{i}' for i in range(1, 7)]
+            finger_joints = [f'{side}_left_finger_joint', f'{side}_right_finger_joint']
+            if mode == 'mock':
+                arm_plugin = 'mock_components/GenericSystem'
+                gripper_plugin = 'mock_components/GenericSystem'
+                arm_params = None
+                gripper_params = None
+                gripper_joints = finger_joints
+            else:
+                arm_plugin = 'fairino_hardware/FairinoHardwareInterface'
+                gripper_plugin = 'ros2_hkv_gripper/GripperHardwareInterface'
+                arm_params = {'robot_ip': hardware[side]['robot_ip']}
+                gripper_params = {
+                    **hardware['gripper'],
+                    'serial_port': hardware[side]['serial_port'],
+                    'gripper_closed_position': arms['gripper']['finger_travel'],
+                }
+                # The HKV hardware exposes only the master finger joint.
+                gripper_joints = [f'{side}_left_finger_joint']
+            control(root, side + '_arm_system', arm_plugin, arm_joints,
+                    initial if mode == 'mock' else None, arm_params)
+            control(root, side + '_gripper_system', gripper_plugin, gripper_joints,
+                    {} if mode == 'mock' else None, gripper_params)
     return root
 
 
@@ -291,33 +352,59 @@ def semantic(root, arms):
     return ET.tostring(srdf, encoding='unicode')
 
 
-def controllers():
-    result = {'controller_manager': {'ros__parameters': {'update_rate': 100, 'use_sim_time': True}}}
-    for side in SIDES:
-        names = (side + '_joint_state_broadcaster', side + '_arm_controller',
-                 side + '_gripper_controller')
+def manager_model(root, side):
+    result = deepcopy(root)
+    for node in list(result.findall('ros2_control')):
+        if not node.get('name').startswith(side + '_'):
+            result.remove(node)
+    return ET.tostring(result, encoding='unicode')
+
+
+def controllers(mode='gazebo', side=None):
+    if mode == 'gazebo':
+        manager = 'controller_manager'
+        params = {'update_rate': 100, 'use_sim_time': True}
+    else:
+        manager = side + '_controller_manager'
+        params = {'update_rate': 125, 'use_sim_time': False}
+    result = {manager: {'ros__parameters': params}}
+    sides = SIDES if side is None else (side,)
+    for arm in sides:
+        names = (arm + '_joint_state_broadcaster', arm + '_arm_controller',
+                 arm + '_gripper_controller')
+        if mode == 'real':
+            gripper_kind = 'position_controllers/GripperActionController'
+            gripper_joints = [f'{arm}_left_finger_joint']
+        else:
+            gripper_kind = 'joint_trajectory_controller/JointTrajectoryController'
+            gripper_joints = [f'{arm}_left_finger_joint', f'{arm}_right_finger_joint']
         for name, kind in zip(names, (
                 'joint_state_broadcaster/JointStateBroadcaster',
                 'joint_trajectory_controller/JointTrajectoryController',
-                'joint_trajectory_controller/JointTrajectoryController')):
-            result['controller_manager']['ros__parameters'][name] = {'type': kind}
+                gripper_kind)):
+            result[manager]['ros__parameters'][name] = {'type': kind}
         result[names[0]] = {'ros__parameters': {
-            'joints': [f'{side}_j{i}' for i in range(1, 7)] +
-                      [f'{side}_left_finger_joint', f'{side}_right_finger_joint'],
+            'joints': [f'{arm}_j{i}' for i in range(1, 7)] + gripper_joints,
             'interfaces': ['position'], 'use_local_topics': False}}
         result[names[1]] = {'ros__parameters': {
-            'joints': [f'{side}_j{i}' for i in range(1, 7)],
+            'joints': [f'{arm}_j{i}' for i in range(1, 7)],
             'command_interfaces': ['position'], 'state_interfaces': ['position'],
             'allow_partial_joints_goal': False, 'state_publish_rate': 50.0,
             'constraints': {'goal_time': 2.0, 'stopped_velocity_tolerance': 0.05}}}
-        result[names[2]] = {'ros__parameters': {
-            'joints': [f'{side}_left_finger_joint', f'{side}_right_finger_joint'],
-            'command_interfaces': ['position'], 'state_interfaces': ['position', 'velocity'],
-            'allow_partial_joints_goal': False}}
+        if mode == 'real':
+            result[names[2]] = {'ros__parameters': {
+                'joint': f'{arm}_left_finger_joint', 'goal_tolerance': 0.002,
+                'max_effort': 0.0, 'allow_stalling': True}}
+        else:
+            result[names[2]] = {'ros__parameters': {
+                'joints': gripper_joints,
+                'command_interfaces': ['position'],
+                'state_interfaces': ['position', 'velocity'],
+                'allow_partial_joints_goal': False}}
     return result
 
 
-def moveit_config(root, arms):
+def moveit_config(root, arms, mode='gazebo'):
     mapping = {'controller_names': []}
     kinematics = {}
     ompl = {}
@@ -329,11 +416,16 @@ def moveit_config(root, arms):
             'kinematics_solver': 'kdl_kinematics_plugin/KDLKinematicsPlugin',
             'kinematics_solver_timeout': 0.1,
             'kinematics_solver_search_resolution': 0.005}
+        if mode == 'real':
+            gripper_mapping = ('GripperCommand', 'command', [f'{side}_left_finger_joint'])
+        else:
+            gripper_mapping = (
+                'FollowJointTrajectory', 'follow_joint_trajectory',
+                [f'{side}_left_finger_joint', f'{side}_right_finger_joint'])
         for suffix, kind, action, joints in (
                 ('arm_controller', 'FollowJointTrajectory', 'follow_joint_trajectory',
                  [f'{side}_j{i}' for i in range(1, 7)]),
-                ('gripper_controller', 'FollowJointTrajectory', 'follow_joint_trajectory',
-                 [f'{side}_left_finger_joint', f'{side}_right_finger_joint'])):
+                ('gripper_controller', gripper_mapping[0], gripper_mapping[1], gripper_mapping[2])):
             name = side + '_' + suffix
             mapping['controller_names'].append(name)
             mapping[name] = {'type': kind, 'action_ns': action, 'default': True, 'joints': joints}

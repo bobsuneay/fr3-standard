@@ -38,7 +38,8 @@ def start(context):
     controller_file = run / 'gazebo_controllers.yaml'
     controller_file.write_text(yaml.safe_dump(controllers()), encoding='utf-8')
 
-    root = build_model(description_share, scene_path, arms, controller_file)
+    root = build_model(description_share, scene_path, arms, mode='gazebo',
+                       controller_file=controller_file)
     for mesh in root.iter('mesh'):
         uri = mesh.get('filename')
         if not uri.startswith('package://fr3_dual_arm_description/'):
