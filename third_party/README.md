@@ -39,3 +39,33 @@ ros2_hkv_gripper/
 - 不要同时 source 多个 `fairino_hardware*` 版本。
 - 官方驱动编译成功后，再在本项目的 `fr3_dual_arm_hardware` 中做 6 轴与夹爪适配。
 - 第三方包 license 按各自上游声明处理。
+
+## 必须打的补丁：让 FairinoHardwareInterface 支持双 IP
+
+法奥 `fairino_hardware_v3_9_7` 的 `FairinoHardwareInterface` 默认把控制器 IP
+写死为 `192.168.58.2`，并且没有读取 ros2_control 的 `robot_ip` 参数：
+
+```cpp
+// include/fairino_hardware/fairino_hardware_interface.hpp
+#define CONTROLLER_IP_ADDRESS "192.168.58.2"
+std::string _controller_ip = CONTROLLER_IP_ADDRESS;
+```
+
+因此左、右两个硬件实例都会去连 `192.168.58.2`，第一个连上，第二个报
+“机械臂SDK连接失败！请检查端口时候被占用”。本项目在 URDF 里传的
+`<param name="robot_ip">` 不会被它读取。
+
+请修改 `fairino_hardware_v3_9_7/src/fairino_hardware_interface.cpp` 的
+`on_init()`，在 `info_ = sysinfo;` 之后加：
+
+```cpp
+    auto robot_ip = info_.hardware_parameters.find("robot_ip");
+    if (robot_ip != info_.hardware_parameters.end() && !robot_ip->second.empty()) {
+        _controller_ip = robot_ip->second;
+    }
+    RCLCPP_INFO(rclcpp::get_logger("FairinoHardwareInterface"),
+                "FairinoHardwareInterface connecting to robot IP: %s",
+                _controller_ip.c_str());
+```
+
+重新编译 `fairino_hardware_v3_9_7` 后，左右臂才会分别连到各自配置的 IP。
