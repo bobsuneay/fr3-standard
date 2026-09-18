@@ -116,6 +116,14 @@ def mesh(link, name, xyz=(0, 0, 0), yaw=0):
     element(material, 'color', rgba=color)
 
 
+def mesh_collision(link, name, xyz=(0, 0, 0), yaw=0, scale='.001 .001 .001'):
+    block = element(link, 'collision')
+    element(block, 'origin', xyz=numbers(xyz), rpy=f'0 0 {yaw}')
+    element(element(block, 'geometry'), 'mesh',
+            filename=f'package://{PACKAGE}/meshes/hkv_tg9801/{name}.stl',
+            scale=scale)
+
+
 def add_gripper(root, side, cfg):
     p = side + '_'
     g = cfg['gripper']
@@ -128,8 +136,9 @@ def add_gripper(root, side, cfg):
     mesh(palm, 'flange')
     mesh(palm, 'base_body', (0, 0, 0.0615))
     mesh(palm, 'rail_155', (0, 0, 0.067))
-    box(palm, (0.16, 0.0705, 0.0615), (0, 0.00325, 0.03075))
-    box(palm, (0.155, 0.007, 0.0048), (0, 0, 0.0694))
+    mesh_collision(palm, 'flange')
+    mesh_collision(palm, 'base_body', (0, 0, 0.0615))
+    mesh_collision(palm, 'rail_155', (0, 0, 0.067))
     fixed(root, p + 'tool_to_gripper', p + 'tool0', p + 'gripper_palm')
 
     for index, sign in enumerate((-1, 1)):
@@ -140,8 +149,8 @@ def add_gripper(root, side, cfg):
         inertial(link, 0.08, (0.008, 0.018, 0.07), (0, 0, 0.04))
         mesh(link, 'slider')
         mesh(link, 'finger', (0, 0, 0.008), 0 if index == 0 else math.pi)
-        box(link, (0.024, 0.017, 0.0065), (0, 0, 0.00485))
-        box(link, (0.0285, 0.040, 0.0717), (0, 0, 0.04385), visual=False)
+        mesh_collision(link, 'slider')
+        mesh_collision(link, 'finger', (0, 0, 0.008), 0 if index == 0 else math.pi)
         joint = element(root, 'joint', name=joint_name, type='prismatic')
         element(joint, 'parent', link=p + 'gripper_palm')
         element(joint, 'child', link=link_name)
@@ -150,7 +159,7 @@ def add_gripper(root, side, cfg):
         element(joint, 'limit', lower=0, upper=0.05, effort=100, velocity=0.10)
         element(joint, 'dynamics', damping=2.0, friction=0.10)
         surface = element(root, 'gazebo', reference=link_name)
-        element(surface, 'selfCollide').text = 'true'
+        element(surface, 'selfCollide').text = 'false'
         for tag, value in (('mu1', 1), ('mu2', 1), ('kp', 100000), ('kd', 10)):
             element(surface, tag).text = str(value)
 
@@ -243,18 +252,22 @@ def common_model(scene_path):
           (0, 0, support['foot_size'][2] / 2))
 
     camera = scene['camera']
+    support_top = support['size'][2]
+    bracket_size = (0.04, 0.04, 0.08)
+    bracket_xyz = (0.0, 0.0, support_top + bracket_size[2] / 2)
     bracket = element(root, 'link', name='head_camera_bracket')
-    inertial(bracket, 0.12, (0.12, 0.05, 0.06))
-    box(bracket, (0.12, 0.05, 0.06), visual=True)
-    box(bracket, (0.12, 0.05, 0.06))
+    inertial(bracket, 0.12, bracket_size)
+    box(bracket, bracket_size, visual=True)
+    box(bracket, bracket_size)
     fixed(root, 'support_to_head_camera_bracket', 'support_link', 'head_camera_bracket',
-          (camera['xyz'][0] - 0.04, camera['xyz'][1], camera['xyz'][2] - 0.055))
+          bracket_xyz)
     head = element(root, 'link', name='head_camera_link')
     inertial(head, 0.2, (0.045, 0.13, 0.045))
     box(head, (0.045, 0.13, 0.045), visual=True)
     box(head, (0.045, 0.13, 0.045))
-    fixed(root, 'support_to_head_camera', 'support_link', 'head_camera_link',
-          camera['xyz'], camera['rpy'])
+    head_offset = [a - b for a, b in zip(camera['xyz'], bracket_xyz)]
+    fixed(root, 'bracket_to_head_camera', 'head_camera_bracket', 'head_camera_link',
+          head_offset, camera['rpy'])
     element(root, 'link', name='head_camera_optical_frame')
     fixed(root, 'head_camera_optical_joint', 'head_camera_link',
           'head_camera_optical_frame', rpy=(-math.pi / 2, 0, -math.pi / 2))
@@ -406,6 +419,11 @@ def semantic(root, arms):
                 link2=side + '_gripper_palm', reason='Mounting')
         element(srdf, 'disable_collisions', link1=side + '_mount_plate',
                 link2=side + '_base_link', reason='Mounting')
+    for link1, link2 in (('support_link', 'head_camera_bracket'),
+                         ('head_camera_bracket', 'head_camera_link'),
+                         ('support_link', 'head_camera_link')):
+        element(srdf, 'disable_collisions', link1=link1, link2=link2,
+                reason='Head camera mount')
     both = element(srdf, 'group', name='both_arms')
     for side in SIDES:
         element(both, 'group', name=side + '_arm')
@@ -470,7 +488,20 @@ def controllers(mode='gazebo', side=None):
 def moveit_config(root, arms, mode='gazebo'):
     mapping = {'controller_names': []}
     kinematics = {}
-    ompl = {}
+    ompl = {
+        'planning_plugin': 'ompl_interface/OMPLPlanner',
+        'request_adapters': (
+            'default_planner_request_adapters/AddTimeOptimalParameterization '
+            'default_planner_request_adapters/ResolveConstraintFrames '
+            'default_planner_request_adapters/FixWorkspaceBounds '
+            'default_planner_request_adapters/FixStartStateBounds '
+            'default_planner_request_adapters/FixStartStateCollision '
+            'default_planner_request_adapters/FixStartStatePathConstraints'),
+        'response_adapters': (
+            'default_planning_response_adapters/AddTimeOptimalParameterization '
+            'default_planning_response_adapters/ValidateSolution '
+            'default_planning_response_adapters/DisplaySolutionPath'),
+    }
     for group in ('left_arm', 'right_arm', 'both_arms', 'left_gripper', 'right_gripper'):
         ompl[group] = {'planner_configs': ['RRTConnectkConfigDefault'],
                        'longest_valid_segment_fraction': 0.005}
