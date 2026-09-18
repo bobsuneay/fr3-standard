@@ -23,4 +23,9 @@ setup(
     maintainer_email='maintainer@example.com',
     description='Gazebo support for the dual-arm FR3 cell',
     license='MIT',
+    entry_points={
+        'console_scripts': [
+            'publish_scene = fr3_dual_arm_gazebo.planning_scene:main',
+        ],
+    },
 )
