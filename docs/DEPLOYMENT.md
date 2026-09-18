@@ -3,9 +3,18 @@
 ## 1. 硬件确认
 
 - 两台 FR3 控制柜版本确认，默认对应 `3.9.7` 源码。
-- 两个 HKV TG-9801 夹爪分别连接不同串口。
+- 两个 HKV TG-9801 夹爪挂在各自机械臂末端，由法奥控制器统一驱动，**不要**再通过 USB 串口直连上位机。
+- 在示教器/手册上确认每台机器人对应的夹爪编号 `gripper_index`（通常为 1，多夹爪时不同）。
 - 两台机器人 IP 不同，建议避免都使用默认 `192.168.58.2`。
 - 相机、急停、工作区域清空。
+
+夹爪走法奥 SDK 接口（`ActGripper` / `MoveGripper` / `GetGripperCurPosition`），
+通过法奥驱动的 `RemoteCmdInterface` 服务下发字符串指令，例如：
+
+```bash
+ros2 service call /remote_cmd_interface fairino_msgs/srv/RemoteCmdInterface \
+  "{cmd_str: 'MoveGripper(1,50)'}"
+```
 
 ## 2. 现场参数
 
@@ -23,6 +32,10 @@ cp src/fr3_dual_arm_description/config/scene.yaml ~/fr3_dual_arm.scene.yaml
 - TCP 和夹爪开度/行程
 - 相机外参
 - 桌面、立柱、被抓零件的位置
+- 每台机器人实际的 `gripper_index` 与夹爪开合百分比（`open_pos` / `closed_pos`）
+
+> `hardware.example.yaml` 里已经删除了 `serial_port`，改为 `gripper_index`。
+> 夹爪开合现在通过法奥 SDK 完成，`ros2_hkv_gripper`（USB 串口 Modbus）只适用于夹爪独立串口直连的场景。
 
 ## 3. 先反馈后执行
 

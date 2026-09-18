@@ -24,7 +24,7 @@ fr3_dualarm_deploy_ws/
 │   ├── fr3_dual_arm_bringup/          # 仿真/mock/实机统一入口
 │   ├── fr3_dual_arm_grasp/            # 定点抓取、检测、交接应用
 │   ├── fr3_dual_arm_calibration/      # 手眼标定与相机外参管理
-│   └── third_party/                   # 法奥官方驱动、HKV 夹爪驱动
+│   └── third_party/                   # 法奥官方驱动（含机械臂挂载夹爪 SDK 接口）
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── PORTING_MAP.md

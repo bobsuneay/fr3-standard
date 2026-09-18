@@ -4,10 +4,12 @@
 
 ## 后续接入
 
-1. 把 `fairino_hardware_v3_9_7` 和 `ros2_hkv_gripper` 放入 `third_party` 并编译。
-2. 在 `read()` 中读取两台 FR3 的实际关节角。
-3. 在 `write()` 中发送轨迹目标。
-4. 夹爪通过 `ros2_hkv_gripper/GripperHardwareInterface` 接入，或在本接口中集成。
+1. 把 `fairino_hardware_v3_9_7` 放入 `third_party` 并编译。
+2. 6 轴手臂直接复用 `fairino_hardware/FairinoHardwareInterface`（按 `robot_ip` 走 RPC/socket）。
+3. 夹爪按 `gripper_index` 走法奥 SDK：实现 `fairino_hardware/FairinoGripperHardwareInterface`。
+   - `read()` 调 `GetGripperCurPosition` 回读 0–100 位置。
+   - `write()` 把手指关节位置映射成 0–100 后调 `MoveGripper`。
+4. 夹爪开合参数在 `hardware.example.yaml` 的 `gripper.vel / force / maxtime / block / open_pos / closed_pos` 中配置。
 
 ## 安全
 
