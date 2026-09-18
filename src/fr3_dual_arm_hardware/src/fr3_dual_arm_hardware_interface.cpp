@@ -29,7 +29,7 @@ Fr3DualArmHardwareInterface::export_state_interfaces()
   for (std::size_t i = 0; i < info_.joints.size(); ++i) {
     interfaces.emplace_back(
       info_.joints[i].name,
-      hardware_interface::HW_IF_POSITION,
+      "position",
       &joint_position_state_[i]);
   }
   return interfaces;
@@ -42,7 +42,7 @@ Fr3DualArmHardwareInterface::export_command_interfaces()
   for (std::size_t i = 0; i < info_.joints.size(); ++i) {
     interfaces.emplace_back(
       info_.joints[i].name,
-      hardware_interface::HW_IF_POSITION,
+      "position",
       &joint_position_command_[i]);
   }
   return interfaces;
