@@ -31,6 +31,40 @@ camera:
   rate: 10.0
   near: 0.05
   far: 3.0
+cameras:
+  waist_camera:
+    parent: support_link
+    xyz: [0.105, 0.0, 1.22]
+    rpy: [0.0, 0.401, 0.0]
+    width: 1280
+    height: 720
+    horizontal_fov: 1.211
+    near: 0.10
+    far: 2.0
+    rate: 10.0
+    depth: false
+  left_d435i:
+    parent: left_gripper_palm
+    xyz: [0.0, 0.080, 0.020]
+    rpy: [0.0, -1.016, -1.5707963267948966]
+    width: 640
+    height: 480
+    horizontal_fov: 1.518
+    near: 0.10
+    far: 2.0
+    rate: 10.0
+    depth: true
+  right_d435i:
+    parent: right_gripper_palm
+    xyz: [0.0, 0.080, 0.020]
+    rpy: [0.0, -1.016, -1.5707963267948966]
+    width: 640
+    height: 480
+    horizontal_fov: 1.518
+    near: 0.10
+    far: 2.0
+    rate: 10.0
+    depth: true
 table:
   center_xy:
   - 0.48

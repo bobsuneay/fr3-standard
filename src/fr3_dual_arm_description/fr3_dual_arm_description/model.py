@@ -177,6 +177,51 @@ def control(root, name, plugin, joints, initial=None, parameters=None):
     return system
 
 
+def add_camera(root, name, parent, cfg, depth, bracket_xyz, bracket_size):
+    """Add a small camera bracket, camera body, optical frame and Gazebo sensor."""
+    bracket = element(root, 'link', name=name + '_bracket')
+    inertial(bracket, 0.025, bracket_size)
+    box(bracket, bracket_size, visual=True)
+    box(bracket, bracket_size)
+    fixed(root, name + '_bracket_joint', parent, name + '_bracket', bracket_xyz)
+
+    link = element(root, 'link', name=name + '_link')
+    camera_size = (0.025, 0.090, 0.025)
+    inertial(link, 0.075, camera_size)
+    box(link, camera_size, visual=True)
+    box(link, camera_size)
+    offset = [a - b for a, b in zip(cfg['xyz'], bracket_xyz)]
+    fixed(root, name + '_mount', name + '_bracket', name + '_link', offset, cfg['rpy'])
+
+    element(root, 'link', name=name + '_optical_frame')
+    fixed(root, name + '_optical_joint', name + '_link', name + '_optical_frame',
+          rpy=(-math.pi / 2, 0, -math.pi / 2))
+
+    cam = element(root, 'gazebo', reference=name + '_link')
+    element(cam, 'material').text = 'Gazebo/Black'
+    sensor = element(cam, 'sensor', name=name + ('_rgbd' if depth else '_rgb'),
+                     type='depth' if depth else 'camera')
+    element(sensor, 'always_on').text = 'true'
+    element(sensor, 'update_rate').text = str(cfg['rate'])
+    camera_el = element(sensor, 'camera', name=name)
+    element(camera_el, 'horizontal_fov').text = str(cfg['horizontal_fov'])
+    image = element(camera_el, 'image')
+    element(image, 'width').text = str(cfg['width'])
+    element(image, 'height').text = str(cfg['height'])
+    element(image, 'format').text = 'R8G8B8'
+    clip = element(camera_el, 'clip')
+    element(clip, 'near').text = str(cfg['near'])
+    element(clip, 'far').text = str(cfg['far'])
+    plugin = element(sensor, 'plugin', name=name + '_ros', filename='libgazebo_ros_camera.so')
+    ros = element(plugin, 'ros')
+    element(ros, 'namespace').text = '/'
+    element(plugin, 'camera_name').text = name
+    element(plugin, 'frame_name').text = name + '_optical_frame'
+    if depth:
+        element(plugin, 'min_depth').text = str(cfg['near'])
+        element(plugin, 'max_depth').text = str(cfg['far'])
+
+
 def common_model(scene_path):
     scene = read_yaml(scene_path)
     root = ET.Element('robot', name='fr3_dual_arm')
@@ -198,6 +243,12 @@ def common_model(scene_path):
           (0, 0, support['foot_size'][2] / 2))
 
     camera = scene['camera']
+    bracket = element(root, 'link', name='head_camera_bracket')
+    inertial(bracket, 0.12, (0.12, 0.05, 0.06))
+    box(bracket, (0.12, 0.05, 0.06), visual=True)
+    box(bracket, (0.12, 0.05, 0.06))
+    fixed(root, 'support_to_head_camera_bracket', 'support_link', 'head_camera_bracket',
+          (camera['xyz'][0] - 0.04, camera['xyz'][1], camera['xyz'][2] - 0.055))
     head = element(root, 'link', name='head_camera_link')
     inertial(head, 0.2, (0.045, 0.13, 0.045))
     box(head, (0.045, 0.13, 0.045), visual=True)
@@ -229,6 +280,12 @@ def common_model(scene_path):
     element(plugin, 'frame_name').text = 'head_camera_optical_frame'
     element(plugin, 'min_depth').text = str(camera['near'])
     element(plugin, 'max_depth').text = str(camera['far'])
+
+    waist = scene.get('cameras', {}).get('waist_camera')
+    if waist:
+        add_camera(root, 'waist_camera', waist['parent'], waist,
+                   waist.get('depth', False), (0.068, 0, 1.22),
+                   (0.035, 0.015, 0.015))
 
     return root, scene
 
@@ -265,6 +322,12 @@ def build_model(share, scene_path, arms, mode='gazebo', controller_file='', hard
         fixed(root, p + 'base_mount', 'support_link', p + 'base_link',
               arms[side]['xyz'], arms[side]['rpy'])
         add_gripper(root, side, arms)
+        camera_name = side + '_d435i'
+        wrist_camera = scene.get('cameras', {}).get(camera_name)
+        if wrist_camera:
+            add_camera(root, camera_name, wrist_camera['parent'], wrist_camera,
+                       wrist_camera.get('depth', True), (0, 0.055, 0.020),
+                       (0.015, 0.050, 0.015))
         for joint_name in (p + 'wrist_to_tool', p + 'tool_to_gripper', p + 'palm_to_tcp'):
             gazebo = element(root, 'gazebo', reference=joint_name)
             element(gazebo, 'preserveFixedJoint').text = 'true'
