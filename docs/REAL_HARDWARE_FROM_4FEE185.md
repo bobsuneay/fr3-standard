@@ -62,20 +62,20 @@ e381636 Share Fairino RPC between arm and gripper hardware
 
 ## 3. 应用法奥驱动补丁
 
-进入补丁根目录。这里同时能看到补丁和 fairino_hardware_v3_9_7：
+进入厂商源码包目录。补丁文件在上一级，目标目录 fairino_hardware_v3_9_7 在当前目录下：
 
 ```bash
-cd ~/fr3-standard/third_party
-ls fairino_dual_arm_ip.patch
-ls fairino_gripper_interface.patch
-ls frcobot_ros2-v3.0.0_robotV3.9.7/fairino_hardware_v3_9_7/src/fairino_hardware_interface.cpp
+cd ~/fr3-standard/third_party/frcobot_ros2-v3.0.0_robotV3.9.7
+ls ../fairino_dual_arm_ip.patch
+ls ../fairino_gripper_interface.patch
+ls fairino_hardware_v3_9_7/src/fairino_hardware_interface.cpp
 ```
 
 先检查并应用双 IP 补丁：
 
 ```bash
-patch --dry-run -p1 < fairino_dual_arm_ip.patch
-patch -p1 < fairino_dual_arm_ip.patch
+patch --dry-run -p1 < ../fairino_dual_arm_ip.patch
+patch -p1 < ../fairino_dual_arm_ip.patch
 ```
 
 成功时应看到：
@@ -87,14 +87,14 @@ checking file fairino_hardware_v3_9_7/src/fairino_hardware_interface.cpp
 再检查并应用夹爪补丁：
 
 ```bash
-patch --dry-run -p1 < fairino_gripper_interface.patch
-patch -p1 < fairino_gripper_interface.patch
+patch --dry-run -p1 < ../fairino_gripper_interface.patch
+patch -p1 < ../fairino_gripper_interface.patch
 ```
 
 如果提示 Reversed (or previously applied) patch detected，说明补丁已经应用，不要重复执行。可用下面的命令确认：
 
 ```bash
-patch --dry-run -R -p1 < fairino_gripper_interface.patch
+patch --dry-run -R -p1 < ../fairino_gripper_interface.patch
 ```
 
 ## 4. 检查补丁内容
@@ -102,13 +102,20 @@ patch --dry-run -R -p1 < fairino_gripper_interface.patch
 ```bash
 rg -n \
 "robot_ip|gripper_index|ActGripper|MoveGripper|GetGripperCurPosition|has_gripper" \
-frcobot_ros2-v3.0.0_robotV3.9.7/fairino_hardware_v3_9_7/include/fairino_hardware/fairino_hardware_interface.hpp \
-frcobot_ros2-v3.0.0_robotV3.9.7/fairino_hardware_v3_9_7/src/fairino_hardware_interface.cpp
+fairino_hardware_v3_9_7/include/fairino_hardware/fairino_hardware_interface.hpp \
+fairino_hardware_v3_9_7/src/fairino_hardware_interface.cpp
 ```
 
-应能看到 robot_ip、gripper_index、ActGripper、MoveGripper、GetGripperCurPosition 和 has_gripper。
+应能看到 robot_ip、gripper_index、ActGripper、MoveGripper 和 GetGripperCurPosition。
+同时还应检查新增插件文件：
 
-当前版本把夹爪接入已有的 fairino_hardware/FairinoHardwareInterface，左右每个控制器只建立一条 Fairino RPC 连接。
+```bash
+ls fairino_hardware_v3_9_7/include/fairino_hardware/fairino_gripper_hardware_interface.hpp
+ls fairino_hardware_v3_9_7/src/fairino_gripper_hardware_interface.cpp
+```
+
+当前版本通过新增的 fairino_hardware/FairinoGripperHardwareInterface 接收
+GripperCommand action，并调用法奥 SDK 控制真实夹爪。
 
 ## 5. 编译厂商驱动
 
@@ -231,8 +238,8 @@ ls third_party/fairino_gripper_interface.patch
 必须在下面这个目录执行补丁命令：
 
 ```bash
-cd ~/fr3-standard/third_party
-ls frcobot_ros2-v3.0.0_robotV3.9.7/fairino_hardware_v3_9_7/src/fairino_hardware_interface.cpp
+cd ~/fr3-standard/third_party/frcobot_ros2-v3.0.0_robotV3.9.7
+ls fairino_hardware_v3_9_7/src/fairino_hardware_interface.cpp
 ```
 
 ### 补丁已经应用
@@ -240,7 +247,7 @@ ls frcobot_ros2-v3.0.0_robotV3.9.7/fairino_hardware_v3_9_7/src/fairino_hardware_
 看到 Reversed (or previously applied) patch detected 时不要重复应用：
 
 ```bash
-patch --dry-run -R -p1 < fairino_gripper_interface.patch
+patch --dry-run -R -p1 < ../fairino_gripper_interface.patch
 ```
 
 ### 修改后仍使用旧驱动
@@ -253,4 +260,3 @@ source ~/fr3-standard/install/setup.bash
 ```
 
 软件停止、RViz Stop 或 action cancel 都不能替代硬件急停。
-

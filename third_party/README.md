@@ -24,13 +24,10 @@ frcobot_ros2-v3.0.0_robotV3.9.7/
 - `MoveGripper(index, pos, vel, force, max_time, block, ...)`
 - `GetGripperCurPosition(...)`
 
-本仓库的 `fairino_gripper_interface.patch` 直接修改官方已有的
-`fairino_hardware/FairinoHardwareInterface`，让同一个 ros2_control 硬件实例
-同时处理 6 个手臂关节和 1 个夹爪关节。
-
-这样每台机械臂只保持一条法奥 SDK RPC 连接，避免再开一个独立的
-`FairinoGripperHardwareInterface` 造成同进程双 RPC 冲突。夹爪逻辑仍复用同一
-个 `FRRobot`：
+本仓库的 `fairino_gripper_interface.patch` 直接修改官方
+`fairino_hardware_v3_9_7` 包，新增 `FairinoGripperHardwareInterface`，并在
+`fairino_hardware.xml` 和 `CMakeLists.txt` 中注册、编译该插件。夹爪逻辑使用
+法奥 SDK 的独立 `FRRobot` 连接：
 
 - `on_activate()`：连接控制器后执行 `ActGripper`；
 - `read()`：低频调用 `GetGripperCurPosition`；夹爪反馈失败不会使手臂掉线；

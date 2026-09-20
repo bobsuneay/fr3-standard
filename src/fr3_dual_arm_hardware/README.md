@@ -6,9 +6,8 @@
 
 1. 把 `fairino_hardware_v3_9_7` 放入 `third_party` 并编译。
 2. 6 轴手臂直接复用 `fairino_hardware/FairinoHardwareInterface`（按 `robot_ip` 走 RPC/socket）。
-3. 夹爪按 `gripper_index` 走法奥 SDK：厂商驱动补丁会修改
-   `fairino_hardware/FairinoHardwareInterface`，让 6 轴手臂和夹爪共用同一个
-   硬件实例和同一条 RPC 连接。
+3. 夹爪按 `gripper_index` 走法奥 SDK：厂商驱动补丁会在
+   `fairino_hardware_v3_9_7` 中新增 `FairinoGripperHardwareInterface`。
    - `read()` 调 `GetGripperCurPosition` 回读 0–100 位置。
    - `write()` 把手指关节位置映射成 0–100 后调 `MoveGripper`。
    - 补丁见 `../../third_party/fairino_gripper_interface.patch`。

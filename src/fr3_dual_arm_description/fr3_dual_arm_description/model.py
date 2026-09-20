@@ -402,16 +402,19 @@ def build_model(share, scene_path, arms, mode='gazebo', controller_file='', hard
                         gripper_params)
             else:
                 arm_plugin = 'fairino_hardware/FairinoHardwareInterface'
-                arm_params = {
+                gripper_plugin = 'fairino_hardware/FairinoGripperHardwareInterface'
+                arm_params = {'robot_ip': hardware[side]['robot_ip']}
+                gripper_params = {
                     'robot_ip': hardware[side]['robot_ip'],
                     'gripper_index': hardware[side]['gripper_index'],
+                    **hardware['gripper'],
                     'open_gap': arms['gripper']['open_gap'],
                     'finger_travel': arms['gripper']['finger_travel'],
-                    **hardware['gripper'],
                 }
                 control(root, side + '_arm_system', arm_plugin,
-                        arm_joints + gripper_joints, None, arm_params,
-                        finger_velocity=False)
+                        arm_joints, None, arm_params)
+                control(root, side + '_gripper_system', gripper_plugin,
+                        gripper_joints, None, gripper_params)
     return root
 
 
