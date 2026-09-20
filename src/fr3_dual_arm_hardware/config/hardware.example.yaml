@@ -12,7 +12,7 @@ gripper:
   vel: 50
   force: 50
   maxtime: 30000
-  # 必须为 1。MoveGripper 阻塞会卡住 ros2_control 控制循环。
+  # 法奥夹爪接口要求使用 1。
   block: 1
   # 法奥 MoveGripper 的 0–100 位置百分比，请按现场夹爪实测。
   open_pos: 0

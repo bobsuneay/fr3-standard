@@ -33,7 +33,7 @@ frcobot_ros2-v3.0.0_robotV3.9.7/
 个 `FRRobot`：
 
 - `on_activate()`：连接控制器后执行 `ActGripper`；
-- `read()`：手臂反馈之外调用 `GetGripperCurPosition`；
+- `read()`：低频调用 `GetGripperCurPosition`；夹爪反馈失败不会使手臂掉线；
 - `write()`：手臂 `ServoJ` 之外，在夹爪目标变化时调用 `MoveGripper`。
 
 仅当夹爪改回独立串口直连上位机时，才需要：

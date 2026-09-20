@@ -64,7 +64,7 @@ def validate_hardware(cfg):
         if type(g[key]) is not int or not low <= g[key] <= high:
             raise ValueError(f'Invalid gripper.{key}')
     if g['block'] != 1:
-        raise ValueError('gripper.block must be 1 (non-blocking) for ros2_control real-time loop')
+        raise ValueError('gripper.block must be 1 for the Fairino gripper interface')
     if g['open_pos'] == g['closed_pos']:
         raise ValueError('gripper.open_pos and gripper.closed_pos must differ')
     return cfg
