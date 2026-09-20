@@ -2,7 +2,7 @@
 <package format="3">
   <name>fr3_dual_arm_grasp</name>
   <version>0.1.0</version>
-  <description>Dual-arm FR3 pick, inspection and handover application.</description>
+  <description>Dual-arm FR3 pick, inspection and handover application. Grippers use a direct Fairino SDK client in real mode.</description>
   <maintainer email="maintainer@example.com">FR3 dual-arm maintainer</maintainer>
   <license>MIT</license>
 

@@ -88,7 +88,7 @@ def start(context):
             output='screen',
         )
         managers.append(manager)
-        for suffix in ('joint_state_broadcaster', 'arm_controller', 'gripper_controller'):
+        for suffix in ('joint_state_broadcaster', 'arm_controller'):
             args = [
                 f'{side}_{suffix}',
                 '-c', f'/{manager_name}',

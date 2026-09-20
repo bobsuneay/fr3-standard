@@ -1,4 +1,4 @@
-# 从 4fee185 升级：双臂与夹爪共享 SDK 连接
+# 从 4fee185 升级：手臂与夹爪直接调用 SDK
 
 适用目录是 `~/fr3-standard`。厂商源码直接修改在其 `third_party` 中，不创建 `fr3_vendor_ws`，不创建另外的硬件插件包。
 
@@ -12,12 +12,10 @@ SIGINT 之后，不能把退出时的错误当作启动前已经证明的网络�
 分别对同一个 IP 调用 `RPC()`。本次修复移除这条重复连接路径：
 
 - 左右仍各自运行一个 `controller_manager` 进程，分别读取现场配置的 IP。
-- 同一进程中的 `FairinoHardwareInterface`（6 个关节）与
-  `FairinoGripperHardwareInterface`（1 个开合关节）共享一个 SDK 实例。
-- 两个插件的 SDK 调用用互斥锁串行化；最后一个使用者释放时才关闭连接。
-- 启动指令从真实反馈初始化；夹爪反馈失败时报告错误，不伪造“已打开”状态。
-- 夹爪命令变化时才调用 `MoveGripper`。本版本厂商头文件定义
-  `block=0` 为阻塞、`block=1` 为非阻塞，因此保留 `block: 1`。
+- 实机 ros2_control 只加载 6 轴 `FairinoHardwareInterface`。
+- `fr3_direct_gripper/fairino_gripper_cli` 直接调用 `ActGripper`、
+  `MoveGripper`、`GetGripperCurPosition`。
+- 夹爪命令程序独立建立一次 SDK 连接，执行后关闭，不加载第二个硬件插件。
 
 这是针对日志和代码定位出的重复连接问题的修复；尚未在你的控制柜上实测。
 插件注册符号存在只证明相关代码编进库，不能单凭符号证明运行时加载、连接或控制成功。
@@ -76,12 +74,13 @@ PASS: shared-RPC source upgrade verified. Rebuild before launching.
 
 重复执行应提示 `Shared-RPC upgrade is already applied`，不用重新打补丁。
 
-如果你已经确认双 IP 与当前夹爪补丁都已应用，也可以只手动应用这次增量补丁：
+如果你只需要当前实机方案，只应用双 IP 手臂补丁即可。夹爪补丁和共享连接补丁
+不再参与实机启动：
 
 ```bash
 cd ~/fr3-standard/third_party/frcobot_ros2-v3.0.0_robotV3.9.7
-patch --batch --fuzz=0 --forward --dry-run -p1 < ../fairino_shared_rpc.patch &&
-patch --batch --fuzz=0 --forward -p1 < ../fairino_shared_rpc.patch
+patch --batch --fuzz=0 --forward --dry-run -p1 < ../fairino_dual_arm_ip.patch &&
+patch --batch --fuzz=0 --forward -p1 < ../fairino_dual_arm_ip.patch
 ```
 
 用下面的**反向试运行**确认完整应用；不会撤销代码：
@@ -181,8 +180,8 @@ ros2 control list_hardware_interfaces -c /right_controller_manager
 ros2 topic echo /joint_states --once
 ```
 
-此时**预期**每侧 joint_state_broadcaster 为 active，arm_controller 和
-gripper_controller 为 inactive。inactive 不是连接失败，不要为了让列表全部 active 而直接执行运动。
+此时**预期**每侧 `joint_state_broadcaster` 为 active，`arm_controller` 为 inactive。
+实机模式不再有 `gripper_controller` action；夹爪使用直接 SDK 命令。
 
 若仍失败，请提供从启动开始到报错的完整日志，以及第 4 节的包路径与字符串检查输出。
 RViz 的 planning_scene 服务等待通常是控制器尚未启动、MoveGroup 尚未被启动的后续现象，

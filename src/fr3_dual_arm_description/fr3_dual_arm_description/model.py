@@ -402,19 +402,11 @@ def build_model(share, scene_path, arms, mode='gazebo', controller_file='', hard
                         gripper_params)
             else:
                 arm_plugin = 'fairino_hardware/FairinoHardwareInterface'
-                gripper_plugin = 'fairino_hardware/FairinoGripperHardwareInterface'
                 arm_params = {'robot_ip': hardware[side]['robot_ip']}
-                gripper_params = {
-                    'robot_ip': hardware[side]['robot_ip'],
-                    'gripper_index': hardware[side]['gripper_index'],
-                    **hardware['gripper'],
-                    'open_gap': arms['gripper']['open_gap'],
-                    'finger_travel': arms['gripper']['finger_travel'],
-                }
                 control(root, side + '_arm_system', arm_plugin,
                         arm_joints, None, arm_params)
-                control(root, side + '_gripper_system', gripper_plugin,
-                        gripper_joints, None, gripper_params)
+                # Real grippers are controlled by the standalone Fairino SDK
+                # client. Do not load a second ros2_control hardware plugin.
     return root
 
 
@@ -478,26 +470,28 @@ def controllers(mode='gazebo', side=None):
     result = {manager: {'ros__parameters': params}}
     sides = SIDES if side is None else (side,)
     for arm in sides:
-        names = (arm + '_joint_state_broadcaster', arm + '_arm_controller',
-                 arm + '_gripper_controller')
-        gripper_kind = 'position_controllers/GripperActionController'
-        gripper_joints = [f'{arm}_left_finger_joint']
-        for name, kind in zip(names, (
-                'joint_state_broadcaster/JointStateBroadcaster',
-                'joint_trajectory_controller/JointTrajectoryController',
-                gripper_kind)):
+        names = [arm + '_joint_state_broadcaster', arm + '_arm_controller']
+        if mode != 'real':
+            names.append(arm + '_gripper_controller')
+        kinds = ['joint_state_broadcaster/JointStateBroadcaster',
+                 'joint_trajectory_controller/JointTrajectoryController']
+        if mode != 'real':
+            kinds.append('position_controllers/GripperActionController')
+        for name, kind in zip(names, kinds):
             result[manager]['ros__parameters'][name] = {'type': kind}
+        gripper_joints = [f'{arm}_left_finger_joint']
         result[names[0]] = {'ros__parameters': {
-            'joints': [f'{arm}_j{i}' for i in range(1, 7)] + gripper_joints,
+            'joints': [f'{arm}_j{i}' for i in range(1, 7)] + (gripper_joints if mode != 'real' else []),
             'interfaces': ['position'], 'use_local_topics': False}}
         result[names[1]] = {'ros__parameters': {
             'joints': [f'{arm}_j{i}' for i in range(1, 7)],
             'command_interfaces': ['position'], 'state_interfaces': ['position'],
             'allow_partial_joints_goal': False, 'state_publish_rate': 50.0,
             'constraints': {'goal_time': 2.0, 'stopped_velocity_tolerance': 0.05}}}
-        result[names[2]] = {'ros__parameters': {
-            'joint': f'{arm}_left_finger_joint', 'goal_tolerance': 0.002,
-            'max_effort': 0.0, 'allow_stalling': True}}
+        if mode != 'real':
+            result[names[2]] = {'ros__parameters': {
+                'joint': f'{arm}_left_finger_joint', 'goal_tolerance': 0.002,
+                'max_effort': 0.0, 'allow_stalling': True}}
     return result
 
 
@@ -527,10 +521,13 @@ def moveit_config(root, arms, mode='gazebo'):
             'kinematics_solver_timeout': 0.1,
             'kinematics_solver_search_resolution': 0.005}
         gripper_mapping = ('GripperCommand', 'command', [f'{side}_left_finger_joint'])
-        for suffix, kind, action, joints in (
+        controller_entries = [
                 ('arm_controller', 'FollowJointTrajectory', 'follow_joint_trajectory',
-                 [f'{side}_j{i}' for i in range(1, 7)]),
-                ('gripper_controller', gripper_mapping[0], gripper_mapping[1], gripper_mapping[2])):
+                 [f'{side}_j{i}' for i in range(1, 7)])]
+        if mode != 'real':
+            controller_entries.append(
+                ('gripper_controller', gripper_mapping[0], gripper_mapping[1], gripper_mapping[2]))
+        for suffix, kind, action, joints in controller_entries:
             name = side + '_' + suffix
             mapping['controller_names'].append(name)
             mapping[name] = {'type': kind, 'action_ns': action, 'default': True, 'joints': joints}

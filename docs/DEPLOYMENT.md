@@ -11,11 +11,9 @@
 - 相机、急停、工作区域清空。
 
 本项目实机启动不再通过 `RemoteCmdInterface` 手动发指令，而是由
-`fairino_hardware/FairinoGripperHardwareInterface` 把 ros2_control 的
-`GripperCommand` action 映射到 SDK `MoveGripper`。厂商驱动必须先应用
-`third_party/fairino_dual_arm_ip.patch`、`third_party/fairino_gripper_interface.patch`
-及 `third_party/fairino_shared_rpc.patch`，然后重新编译。
-同侧手臂与夹爪共享一个 SDK 连接，左右分别使用独立的 controller_manager 进程。
+实机 ros2_control 只加载 `fairino_hardware/FairinoHardwareInterface` 控制手臂。
+夹爪由 `fr3_direct_gripper/fairino_gripper_cli` 直接调用法奥 SDK；不需要
+`fairino_gripper_interface.patch` 或 `fairino_shared_rpc.patch`。
 
 ## 2. 现场参数
 
@@ -56,6 +54,18 @@ ros2 control list_controllers -c /left_controller_manager
 ros2 control list_controllers -c /right_controller_manager
 ros2 topic echo /joint_states --once
 ```
+
+实机夹爪直接控制（SDK 百分比 0–100）：
+
+```bash
+ros2 run fr3_direct_gripper fairino_gripper_cli -- \
+  --ip 192.168.58.5 --index 1 --read
+ros2 run fr3_direct_gripper fairino_gripper_cli -- \
+  --ip 192.168.58.5 --index 1 --percent 50
+```
+
+右夹爪把 IP 替换成右控制柜地址。`--percent` 的方向以现场实测为准，
+先空载、小范围测试；程序会直接调用 `ActGripper` 和非阻塞 `MoveGripper`。
 
 ## 4. 低速小范围验收
 

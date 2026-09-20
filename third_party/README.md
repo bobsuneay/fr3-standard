@@ -5,7 +5,6 @@
 ```text
 third_party/
 ├── fairino_dual_arm_ip.patch
-├── fairino_gripper_interface.patch
 ├── fairino_shared_rpc.patch
 └── frcobot_ros2-v3.0.0_robotV3.9.7/
     ├── fairino_msgs/
@@ -32,12 +31,10 @@ bash scripts/apply_fairino_patches.sh
 ## 驱动结构
 
 - 手臂：`fairino_hardware/FairinoHardwareInterface`，6 个关节，保留 ServoJ 控制路径。
-- 夹爪：`fairino_hardware/FairinoGripperHardwareInterface`，单开合自由度，
-  接收 GripperCommand，经 SDK ActGripper / MoveGripper / GetGripperCurPosition 控制。
-- 同侧两个插件编译在同一个 `libfairino_hardware.so` 中，共享一个 FRRobot/RPC 连接。
-- 左右两侧仍分两个 controller_manager 进程，不把两个 IP 放进同一个 SDK 进程。
-- 夹爪故障会按硬件错误上报，不保证此时手臂仍能继续执行。
-- 此版本 SDK 的 block=1 是非阻塞，block=0 是阻塞；配置保留 block: 1。
+- 实机夹爪不加载 ros2_control 插件，使用 `src/fr3_direct_gripper` 直接调用 SDK。
+- 手臂仍使用 `fairino_hardware/FairinoHardwareInterface`。
+- `fairino_shared_rpc.patch` 不再是实机夹爪必需项；它只适用于旧的插件方案。
 
-不再为同侧夹爪单独创建 SDK 连接，也不需要另启 RemoteCmdInterface 服务。
+夹爪直接调用程序每次执行时建立一次 SDK 连接、执行命令后关闭，不需要
+`RemoteCmdInterface` 服务，也不需要夹爪硬件补丁。
 只有夹爪改为独立串口直连上位机时，才需要重新评估独立串口驱动方案。

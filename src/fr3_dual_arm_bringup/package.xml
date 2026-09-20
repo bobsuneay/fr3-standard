@@ -12,6 +12,7 @@
   <exec_depend>fr3_dual_arm_moveit_config</exec_depend>
   <exec_depend>fr3_dual_arm_gazebo</exec_depend>
   <exec_depend>fr3_dual_arm_hardware</exec_depend>
+  <exec_depend>fr3_direct_gripper</exec_depend>
   <exec_depend>fr3_dual_arm_grasp</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>moveit_ros_move_group</exec_depend>
