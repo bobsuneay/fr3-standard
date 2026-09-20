@@ -3,14 +3,17 @@ firmware: '3.9.7'
 commissioned: false
 left:
   robot_ip: ''
+  # 每台控制器上的夹爪编号，通常都是 1。
   gripper_index: 1
 right:
   robot_ip: ''
-  gripper_index: 2
+  gripper_index: 1
 gripper:
   vel: 50
   force: 50
   maxtime: 30000
-  block: 0
+  # 必须为 1。MoveGripper 阻塞会卡住 ros2_control 控制循环。
+  block: 1
+  # 法奥 MoveGripper 的 0–100 位置百分比，请按现场夹爪实测。
   open_pos: 0
   closed_pos: 100

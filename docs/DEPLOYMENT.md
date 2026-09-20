@@ -16,6 +16,12 @@ ros2 service call /remote_cmd_interface fairino_msgs/srv/RemoteCmdInterface \
   "{cmd_str: 'MoveGripper(1,50)'}"
 ```
 
+本项目实机启动不再通过 `RemoteCmdInterface` 手动发指令，而是由
+`fairino_hardware/FairinoGripperHardwareInterface` 把 ros2_control 的
+`GripperCommand` action 映射到 SDK `MoveGripper`。该接口和双 IP 读取已经
+直接写入 `../fr3-inspection-sim2real/src/fairino_hardware_v3_9_7`，重新编译
+这个厂商驱动目录即可。
+
 ## 2. 现场参数
 
 复制并修改：

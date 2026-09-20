@@ -13,4 +13,8 @@ right_left_finger_joint
 right_right_finger_joint
 ```
 
+`left_right_finger_joint` / `right_right_finger_joint` 是
+`left_left_finger_joint` / `right_left_finger_joint` 的 `mimic`，不再作为
+独立硬件自由度。ros2_control 和 MoveIt 只控制左手指标记的这一个开合关节。
+
 网格文件已经位于 `meshes/fairino3_v6` 和 `meshes/hkv_tg9801`。

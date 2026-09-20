@@ -24,9 +24,16 @@ frcobot_ros2-v3.0.0_robotV3.9.7/
 - `MoveGripper(index, pos, vel, force, max_time, block, ...)`
 - `GetGripperCurPosition(...)`
 
-需要补一个薄封装 `fairino_hardware/FairinoGripperHardwareInterface`（ros2_control
-`SystemInterface`），在 `read()` 中读 `GetGripperCurPosition`，在 `write()` 中把
-手指位置映射成 0–100 百分比后调用 `MoveGripper`。
+已经直接在厂商驱动源码里加好了
+`fairino_hardware/FairinoGripperHardwareInterface`（ros2_control
+`SystemInterface`）。源码位于工作区中的：
+
+```text
+../fr3-inspection-sim2real/src/fairino_hardware_v3_9_7/
+```
+
+它会在 `read()` 中读 `GetGripperCurPosition`，在 `write()` 中把手指位置
+映射成 0–100 百分比后调用 `MoveGripper`。重新编译这个目录即可，不需要打补丁。
 
 仅当夹爪改回独立串口直连上位机时，才需要：
 
@@ -80,6 +87,11 @@ git apply fairino_dual_arm_ip.patch           # 再应用
 
 或用 `patch -p1 < fairino_dual_arm_ip.patch`。应用后重新编译
 `fairino_hardware_v3_9_7` 即可。
+
+夹爪接口和双 IP 读取都已直接写入
+`../fr3-inspection-sim2real/src/fairino_hardware_v3_9_7`，重新编译该目录即可。
+`block` 必须配置为 `1`
+（非阻塞），否则会在 ros2_control 控制循环里阻塞。
 
 补充：`include/fairino_hardware/data_type_def.h:17` 里还有一个
 `#define CONTROLLER_IP "192.168.58.2"`，它被 `command_server.cpp` /
