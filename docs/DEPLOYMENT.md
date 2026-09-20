@@ -1,5 +1,7 @@
 # 实机部署清单
 
+具体更新、补丁与编译步骤以 [共享 SDK 连接升级说明](REAL_HARDWARE_FROM_4FEE185.md) 为准。
+
 ## 1. 硬件确认
 
 - 两台 FR3 控制柜版本确认，默认对应 `3.9.7` 源码。
@@ -8,28 +10,21 @@
 - 两台机器人 IP 不同，建议避免都使用默认 `192.168.58.2`。
 - 相机、急停、工作区域清空。
 
-夹爪走法奥 SDK 接口（`ActGripper` / `MoveGripper` / `GetGripperCurPosition`），
-通过法奥驱动的 `RemoteCmdInterface` 服务下发字符串指令，例如：
-
-```bash
-ros2 service call /remote_cmd_interface fairino_msgs/srv/RemoteCmdInterface \
-  "{cmd_str: 'MoveGripper(1,50)'}"
-```
-
 本项目实机启动不再通过 `RemoteCmdInterface` 手动发指令，而是由
-`fairino_hardware/FairinoHardwareInterface` 把 ros2_control 的
+`fairino_hardware/FairinoGripperHardwareInterface` 把 ros2_control 的
 `GripperCommand` action 映射到 SDK `MoveGripper`。厂商驱动必须先应用
-`third_party/fairino_dual_arm_ip.patch` 和
-`third_party/fairino_gripper_interface.patch`，然后重新编译。
+`third_party/fairino_dual_arm_ip.patch`、`third_party/fairino_gripper_interface.patch`
+及 `third_party/fairino_shared_rpc.patch`，然后重新编译。
+同侧手臂与夹爪共享一个 SDK 连接，左右分别使用独立的 controller_manager 进程。
 
 ## 2. 现场参数
 
-复制并修改：
+只有新部署且目标文件不存在时才复制示例，再校准。已有现场配置不要覆盖：
 
 ```bash
-cp src/fr3_dual_arm_hardware/config/hardware.example.yaml ~/fr3_dual_arm.hardware.yaml
-cp src/fr3_dual_arm_description/config/arms.yaml ~/fr3_dual_arm.arms.yaml
-cp src/fr3_dual_arm_description/config/scene.yaml ~/fr3_dual_arm.scene.yaml
+cp -n src/fr3_dual_arm_hardware/config/hardware.example.yaml ~/fr3_dual_arm.hardware.yaml
+cp -n src/fr3_dual_arm_description/config/arms.yaml ~/fr3_dual_arm.arms.yaml
+cp -n src/fr3_dual_arm_description/config/scene.yaml ~/fr3_dual_arm.scene.yaml
 ```
 
 需要实测：
@@ -44,6 +39,9 @@ cp src/fr3_dual_arm_description/config/scene.yaml ~/fr3_dual_arm.scene.yaml
 > 夹爪开合现在通过法奥 SDK 完成，`ros2_hkv_gripper`（USB 串口 Modbus）只适用于夹爪独立串口直连的场景。
 
 ## 3. 先反馈后执行
+
+`enable_execution:=false` 只让运动控制器 inactive，硬件仍会激活，
+并可能发送维持姿态的 ServoJ；它不是安全停机或纯只读模式。
 
 ```bash
 ros2 launch fr3_dual_arm_bringup real.launch.py \

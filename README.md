@@ -1,5 +1,9 @@
 # FR3 双臂抓取与检测部署工作区
 
+实机更新请先看 [双臂与夹爪共享 SDK 连接升级说明](docs/REAL_HARDWARE_FROM_4FEE185.md)。
+如果夹爪先激活、手臂卡在 `Starting ...please wait...`，本次修复让同侧两个硬件插件共享一个连接。
+厂商源码直接修改在 `~/fr3-standard/third_party`，不需要另建工作区。
+
 这是一个从 `fr3-sim5` 中 **`fr3_bolt_inspection_cell`** 提炼出来的新 ROS 2 工作区骨架。
 
 目标不是把原来的 `fr3_dual_bolt_cell` / `fr3_bolt_inspection_cell` 整个复制过来，而是把它的真实场景参数、双臂模型、点云识别、定点抓取、检测与交接能力，按主流的 ROS 2 分层结构重新组织。
@@ -15,7 +19,7 @@
 ## 目录结构
 
 ```text
-fr3_dualarm_deploy_ws/
+fr3-standard/
 ├── src/
 │   ├── fr3_dual_arm_description/      # URDF/xacro、FR3/HKV 网格、场景参数
 │   ├── fr3_dual_arm_moveit_config/    # SRDF、运动学、控制器桥接
@@ -23,8 +27,9 @@ fr3_dualarm_deploy_ws/
 │   ├── fr3_dual_arm_hardware/         # 实机 ros2_control 硬件接口适配
 │   ├── fr3_dual_arm_bringup/          # 仿真/mock/实机统一入口
 │   ├── fr3_dual_arm_grasp/            # 定点抓取、检测、交接应用
-│   ├── fr3_dual_arm_calibration/      # 手眼标定与相机外参管理
-│   └── third_party/                   # 法奥官方驱动（含机械臂挂载夹爪 SDK 接口）
+│   └── fr3_dual_arm_calibration/      # 手眼标定与相机外参管理
+├── third_party/                      # 法奥官方驱动与补丁
+├── scripts/apply_fairino_patches.sh   # 检查、备份并修改厂商驱动
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── PORTING_MAP.md
@@ -41,7 +46,7 @@ fr3_dualarm_deploy_ws/
 
 ```bash
 source /opt/ros/humble/setup.bash
-cd fr3_dualarm_deploy_ws
+cd ~/fr3-standard
 rosdep install --from-paths src --ignore-src -r -y
 colcon build --symlink-install
 source install/setup.bash
@@ -68,6 +73,7 @@ ros2 launch fr3_dual_arm_bringup real.launch.py \
 ```
 
 实机第一次运行必须使用 `enable_execution:=false`，先确认反馈和控制器状态。
+这不是纯只读/断电模式：硬件仍会激活，并可能发送维持姿态的 ServoJ；必须保持现场安全措施。
 
 ## 当前状态
 
