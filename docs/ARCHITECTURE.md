@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | 机器人模型 | `fr3_dual_arm_description` | 同一套模型 |
 | MoveIt 配置 | `fr3_dual_arm_moveit_config` | 同一套配置 |
-| 硬件接口 | `gazebo_ros2_control/GazeboSystem` | `fairino_hardware/FairinoHardwareInterface`（6 轴）+ `fairino_hardware/FairinoGripperHardwareInterface`（夹爪，随 `third_party` 补丁安装） |
+| 硬件接口 | `gazebo_ros2_control/GazeboSystem` | `fairino_hardware/FairinoHardwareInterface`（6 轴 + 1 个夹爪关节，随 `third_party` 补丁合并） |
 | 控制器 | Gazebo 单 controller_manager | 左/右两个独立 controller_manager |
 | 抓取应用 | `fr3_dual_arm_grasp` | 同一套上层逻辑 |
 | 手眼标定 | 不需要 | `fr3_dual_arm_calibration` |

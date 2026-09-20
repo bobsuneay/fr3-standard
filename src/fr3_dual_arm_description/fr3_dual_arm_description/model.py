@@ -181,7 +181,8 @@ def add_gripper(root, side, cfg):
         element(surface, 'selfCollide').text = 'false'
 
 
-def control(root, name, plugin, joints, initial=None, parameters=None):
+def control(root, name, plugin, joints, initial=None, parameters=None,
+            finger_velocity=True):
     system = element(root, 'ros2_control', name=name, type='system')
     hardware = element(system, 'hardware')
     element(hardware, 'plugin').text = plugin
@@ -191,7 +192,7 @@ def control(root, name, plugin, joints, initial=None, parameters=None):
         joint = element(system, 'joint', name=joint_name)
         element(joint, 'command_interface', name='position')
         state = element(joint, 'state_interface', name='position')
-        if 'finger_joint' in joint_name:
+        if finger_velocity and 'finger_joint' in joint_name:
             element(joint, 'state_interface', name='velocity')
         if initial is not None:
             element(state, 'param', name='initial_value').text = str(initial.get(joint_name, 0))
@@ -394,22 +395,23 @@ def build_model(share, scene_path, arms, mode='gazebo', controller_file='', hard
                 gripper_plugin = 'mock_components/GenericSystem'
                 arm_params = None
                 gripper_params = None
+                control(root, side + '_arm_system', arm_plugin, arm_joints,
+                        initial, arm_params)
+                control(root, side + '_gripper_system', gripper_plugin, gripper_joints,
+                        {f'{side}_left_finger_joint': arms['gripper']['open_gap'] / 2},
+                        gripper_params)
             else:
                 arm_plugin = 'fairino_hardware/FairinoHardwareInterface'
-                gripper_plugin = 'fairino_hardware/FairinoGripperHardwareInterface'
-                arm_params = {'robot_ip': hardware[side]['robot_ip']}
-                gripper_params = {
+                arm_params = {
                     'robot_ip': hardware[side]['robot_ip'],
                     'gripper_index': hardware[side]['gripper_index'],
                     'open_gap': arms['gripper']['open_gap'],
                     'finger_travel': arms['gripper']['finger_travel'],
                     **hardware['gripper'],
                 }
-            control(root, side + '_arm_system', arm_plugin, arm_joints,
-                    initial if mode == 'mock' else None, arm_params)
-            control(root, side + '_gripper_system', gripper_plugin, gripper_joints,
-                    {f'{side}_left_finger_joint': arms['gripper']['open_gap'] / 2}
-                    if mode == 'mock' else None, gripper_params)
+                control(root, side + '_arm_system', arm_plugin,
+                        arm_joints + gripper_joints, None, arm_params,
+                        finger_velocity=False)
     return root
 
 

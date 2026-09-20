@@ -24,16 +24,17 @@ frcobot_ros2-v3.0.0_robotV3.9.7/
 - `MoveGripper(index, pos, vel, force, max_time, block, ...)`
 - `GetGripperCurPosition(...)`
 
-已经直接在厂商驱动源码里加好了
-`fairino_hardware/FairinoGripperHardwareInterface`（ros2_control
-`SystemInterface`）。源码位于工作区中的：
+本仓库的 `fairino_gripper_interface.patch` 直接修改官方已有的
+`fairino_hardware/FairinoHardwareInterface`，让同一个 ros2_control 硬件实例
+同时处理 6 个手臂关节和 1 个夹爪关节。
 
-```text
-../fr3-inspection-sim2real/src/fairino_hardware_v3_9_7/
-```
+这样每台机械臂只保持一条法奥 SDK RPC 连接，避免再开一个独立的
+`FairinoGripperHardwareInterface` 造成同进程双 RPC 冲突。夹爪逻辑仍复用同一
+个 `FRRobot`：
 
-它会在 `read()` 中读 `GetGripperCurPosition`，在 `write()` 中把手指位置
-映射成 0–100 百分比后调用 `MoveGripper`。重新编译这个目录即可，不需要打补丁。
+- `on_activate()`：连接控制器后执行 `ActGripper`；
+- `read()`：手臂反馈之外调用 `GetGripperCurPosition`；
+- `write()`：手臂 `ServoJ` 之外，在夹爪目标变化时调用 `MoveGripper`。
 
 仅当夹爪改回独立串口直连上位机时，才需要：
 
@@ -88,9 +89,14 @@ git apply fairino_dual_arm_ip.patch           # 再应用
 或用 `patch -p1 < fairino_dual_arm_ip.patch`。应用后重新编译
 `fairino_hardware_v3_9_7` 即可。
 
-夹爪接口和双 IP 读取都已直接写入
-`../fr3-inspection-sim2real/src/fairino_hardware_v3_9_7`，重新编译该目录即可。
-`block` 必须配置为 `1`
+应用夹爪补丁：
+
+```bash
+patch -p1 --dry-run < /path/to/fr3_dualarm_deploy_ws/third_party/fairino_gripper_interface.patch
+patch -p1 < /path/to/fr3_dualarm_deploy_ws/third_party/fairino_gripper_interface.patch
+```
+
+应用后重新编译 `fairino_hardware_v3_9_7`。`block` 必须配置为 `1`
 （非阻塞），否则会在 ros2_control 控制循环里阻塞。
 
 补充：`include/fairino_hardware/data_type_def.h:17` 里还有一个
