@@ -28,7 +28,8 @@ fr3_dualarm_deploy_ws/
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── PORTING_MAP.md
-│   └── DEPLOYMENT.md
+│   ├── DEPLOYMENT.md
+│   └── REAL_HARDWARE_FROM_4FEE185.md
 ├── build/
 ├── install/
 └── log/
